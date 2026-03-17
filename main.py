@@ -1,5 +1,7 @@
-def main():
-    print("Hello from joboracle!")
+try:
+    from .src.JobOracle.main import main
+except ImportError:
+    from src.JobOracle.main import main
 
 
 if __name__ == "__main__":

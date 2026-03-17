@@ -1,6 +1,8 @@
-"""Minimal employment analysis toolkit."""
+"""Compatibility wrapper for the src-based JobOracle package."""
 
-from .models import EmploymentReport, EmploymentRequest
-from .service import EmploymentAdvisor
+try:
+    from .src.JobOracle import EmploymentAdvisor, EmploymentReport, EmploymentRequest
+except ImportError:
+    from src.JobOracle import EmploymentAdvisor, EmploymentReport, EmploymentRequest
 
 __all__ = ["EmploymentAdvisor", "EmploymentReport", "EmploymentRequest"]
