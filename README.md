@@ -1,5 +1,7 @@
 # JobOracle
 
+![JobOracle logo](/Users/a1234/WorkingSpace/python/JobOracle/assets/joboracle-logo.svg)
+
 `JobOracle` 是一个轻量的就业分析工具：输入一个就业问题，可选附带用户画像，系统先做检索，再经过 `Researcher / Analyst / Advisor` 三个角色协作，最后产出一份 Markdown 报告。
 
 当前代码采用标准 `src` 布局，核心实现位于 [`src/JobOracle`](/Users/a1234/WorkingSpace/python/JobOracle/src/JobOracle)。

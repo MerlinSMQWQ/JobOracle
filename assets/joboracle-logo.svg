@@ -1,0 +1,44 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="88" y1="72" x2="424" y2="440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#143B5D"/>
+      <stop offset="1" stop-color="#0F766E"/>
+    </linearGradient>
+    <linearGradient id="lens" x1="176" y1="160" x2="314" y2="302" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F6D365"/>
+      <stop offset="1" stop-color="#F59E0B"/>
+    </linearGradient>
+    <filter id="shadow" x="52" y="56" width="408" height="408" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
+      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
+      <feOffset dy="18"/>
+      <feGaussianBlur stdDeviation="18"/>
+      <feComposite in2="hardAlpha" operator="out"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0.03 0 0 0 0 0.16 0 0 0 0 0.21 0 0 0 0.18 0"/>
+      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_0_1"/>
+      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_0_1" result="shape"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" rx="120" fill="#F5F7F4"/>
+
+  <g filter="url(#shadow)">
+    <rect x="76" y="76" width="360" height="360" rx="92" fill="url(#bg)"/>
+
+    <path d="M170 352C170 294.562 216.562 248 274 248H316" stroke="#D7EFE9" stroke-width="20" stroke-linecap="round"/>
+    <path d="M340 222L316 248L340 274" stroke="#D7EFE9" stroke-width="20" stroke-linecap="round" stroke-linejoin="round"/>
+
+    <circle cx="226" cy="214" r="66" fill="url(#lens)"/>
+    <circle cx="226" cy="214" r="46" fill="#FFF8E7" fill-opacity="0.92"/>
+    <path d="M270 258L332 320" stroke="#F6D365" stroke-width="24" stroke-linecap="round"/>
+
+    <circle cx="186" cy="330" r="12" fill="#F6D365"/>
+    <circle cx="238" cy="330" r="12" fill="#F6D365"/>
+    <circle cx="290" cy="330" r="12" fill="#F6D365"/>
+
+    <path d="M208 212C208 193.222 223.222 178 242 178V198C234.268 198 228 204.268 228 212H208Z" fill="#143B5D"/>
+    <path d="M208 212H228V236C228 247.046 219.046 256 208 256V236C208 236 208 220.412 208 212Z" fill="#143B5D"/>
+
+    <path d="M344 154L351.641 169.359L367 177L351.641 184.641L344 200L336.359 184.641L321 177L336.359 169.359L344 154Z" fill="#F8FAFC"/>
+  </g>
+</svg>
