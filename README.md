@@ -223,7 +223,7 @@ uv run src/JobOracle/cli.py crawl-offerstar \
 
 ## 🧠 内部流程
 
-系统不是单次 LLM 直接输出，而是一个轻量三角色流程：
+系统不是单次 LLM 直接输出，而是一个轻量三角色流程，且不依赖任何 Multi-Agent 框架：
 
 1. `Researcher`
    负责信息检索和证据整理。
@@ -241,8 +241,6 @@ uv run src/JobOracle/cli.py crawl-offerstar \
 - `产品` -> `B端产品经理 / 数据产品经理 / 增长产品经理`
 
 ## 🔌 没有 API 也能运行吗
-
-可以。
 
 如果没有可用的 LLM 配置，或者外部网络暂时不可用，系统会自动退回本地规则模式。此时依然会执行：
 
