@@ -1,6 +1,8 @@
-# JobOracle
+<div align="center">
+    <img src="assets/joboracle-logo.svg" width="55%" alt="JobOracle logo" />
+</div>
 
-![JobOracle logo](assets/joboracle-logo.svg)
+# JobOracle
 
 `JobOracle` 是一个轻量的就业分析工具：输入一个就业问题，可选附带用户画像，系统先做检索，再经过 `Researcher / Analyst / Advisor` 三个角色协作，最后产出一份 Markdown 报告。
 
