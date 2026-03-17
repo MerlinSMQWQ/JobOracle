@@ -11,3 +11,4 @@ wheels/
 reports
 jobs_dataset
 .env
+.DS_Store
