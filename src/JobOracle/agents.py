@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from .llm_client import EmploymentLLMClient
 from .models import EmploymentRequest, EmploymentSearchResult
+from .profile import summarize_profile
 from .prompts import (
     ADVISOR_SYSTEM_PROMPT,
     ANALYST_SYSTEM_PROMPT,
@@ -48,6 +49,7 @@ class ResearcherAgent:
             lines.append("- 当前没有外部检索证据，只能基于问题本身做初步判断。")
         if request.profile:
             lines.append(f"- 已提供用户画像字段：{', '.join(sorted(request.profile.keys()))}")
+            lines.append(f"- 用户画像摘要：{summarize_profile(request.profile)}")
         lines.append("- 本轮检索已尝试补充中厂、小厂、民营公司和更现实的就业入口。")
         if education == "本科":
             lines.append("- 对本科学历来说，更现实的分层通常是：冲刺少量大厂，同时重点布局中厂、区域龙头和业务清晰的小厂。")
@@ -109,6 +111,8 @@ class AnalystAgent:
             "- 技能门槛：建议优先以真实 JD 高频技能为准，而不是只看经验帖。",
             "- 风险信号：热门方向容易出现叙事过热、岗位名称泛化、经验要求上移等问题。",
         ]
+        if request.profile:
+            lines.append(f"- 用户画像摘要：{summarize_profile(request.profile)}")
         lines.extend(company_tier_lines)
         if mode == "guidance":
             lines.append("- 指导补充：应优先确定主投岗位，再围绕该岗位准备简历、项目和面试故事。")
@@ -166,23 +170,28 @@ class AdvisorAgent:
             "",
             f"- 本次问题归类为：{mode}",
             "- 当前建议不要只看单一岗位热度，而要同时判断岗位需求、个人匹配和企业稳定性。",
+            f"- 用户画像摘要：{summarize_profile(request.profile)}",
             "",
-            "## 二、Researcher 检索摘要",
+            "## 二、用户画像解读",
+            "",
+            f"- 画像概览：{summarize_profile(request.profile)}",
+            "",
+            "## 三、Researcher 检索摘要",
             "",
             researcher_note,
             "",
-            "## 三、Analyst 结构化判断",
+            "## 四、Analyst 结构化判断",
             "",
             analyst_note,
             "",
-            "## 四、公司层级建议",
+            "## 五、公司层级建议",
             "",
             f"- 学历识别：{education}",
             f"- 建议优先尝试的细分岗位：{', '.join(role_tracks)}",
             f"- 更建议重点关注：{_company_focus_by_education(education, request.query)}",
             f"- 不建议的默认策略：{_avoidance_note_by_education(education)}",
             "",
-            "## 五、Advisor 建议",
+            "## 六、Advisor 建议",
             "",
         ]
         if mode == "guidance":
@@ -207,14 +216,14 @@ class AdvisorAgent:
         lines.extend(
             [
                 "",
-                "## 六、30 天行动计划",
+                "## 七、30 天行动计划",
                 "",
                 f"- 第 1 周：围绕 {', '.join(role_tracks[:3])} 收集 20 到 30 个真实 JD，统计高频技能和经验要求。",
                 f"- 第 2 周：优先挑选适合 {education} 学历切入的公司层级，调整简历和项目表达。",
                 "- 第 3 周：先投一轮中厂和小厂，再少量冲刺高门槛公司，并记录反馈、面试题和拒绝原因。",
                 "- 第 4 周：根据反馈优化岗位选择、公司层级和投递策略。",
                 "",
-                "## 七、参考证据",
+                "## 八、参考证据",
                 "",
             ]
         )

@@ -15,6 +15,7 @@ if __package__ in {None, ""}:
 
 from .models import EmploymentRequest
 from .offerstar_crawler import run_cli as run_offerstar_cli
+from .profile import normalize_profile
 from .service import EmploymentAdvisor
 
 
@@ -80,9 +81,9 @@ def parse_args() -> argparse.Namespace:
 
 def load_profile(args: argparse.Namespace) -> dict[str, object]:
     if args.profile_json:
-        return json.loads(args.profile_json)
+        return normalize_profile(json.loads(args.profile_json))
     if args.profile_file:
-        return json.loads(Path(args.profile_file).read_text(encoding="utf-8"))
+        return normalize_profile(json.loads(Path(args.profile_file).read_text(encoding="utf-8")))
     return {}
 
 

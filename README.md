@@ -77,10 +77,10 @@ pip install -e .
 uv run src/JobOracle/cli.py "2026 年杭州算法岗就业行情如何"
 ```
 
-兼容方式也可继续使用：
+如果你已经执行过 `pip install -e .`，也可以按包方式运行：
 
 ```bash
-python -m cli "2026 年杭州算法岗就业行情如何"
+python -m JobOracle.cli "2026 年杭州算法岗就业行情如何"
 ```
 
 CLI 默认会输出中间过程，包括：
@@ -103,8 +103,31 @@ uv run src/JobOracle/cli.py "我是统计学本科，想去深圳找数据分析
 ```bash
 uv run src/JobOracle/cli.py "我适合投什么数据岗位" \
   --mode guidance \
-  --profile-json '{"education":"统计学本科","internship":"电商运营实习","skills":["Python","SQL","Tableau"]}'
+  --profile-json '{"education":"本科","school":"江西财经大学","major":"统计学","target_cities":["深圳","广州"],"target_roles":["数据分析","商业分析"],"skills":["Python","SQL","Tableau"],"internship":"电商运营实习","projects":["用户增长分析项目"],"preferred_industries":["互联网","消费"]}'
 ```
+
+也可以把画像写进 JSON 文件，再通过 `--profile-file` 传入：
+
+```bash
+uv run src/JobOracle/cli.py "我适合投什么数据岗位" \
+  --mode guidance \
+  --profile-file profile.json
+```
+
+当前推荐的用户画像字段：
+
+- `education`
+- `school`
+- `major`
+- `graduation_year`
+- `target_cities`
+- `target_roles`
+- `skills`
+- `internship`
+- `projects`
+- `preferred_industries`
+
+其中列表字段支持数组，也支持用逗号分隔的字符串；代码会自动标准化。
 
 只看最终输出，不显示中间进度：
 

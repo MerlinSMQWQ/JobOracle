@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 from .models import EmploymentRequest, EmploymentSearchResult
+from .profile import summarize_profile
 
 
 RESEARCHER_SYSTEM_PROMPT = """你是一名就业信息检索研究员。
@@ -77,6 +78,7 @@ def build_researcher_prompt(request: EmploymentRequest, mode: str, results: list
 ```json
 {profile_block}
 ```
+用户画像摘要：{summarize_profile(request.profile)}
 
 检索结果：
 {format_search_results(results)}
@@ -101,6 +103,7 @@ def build_analyst_prompt(
 
 模式：{mode}
 用户问题：{request.query}
+用户画像摘要：{summarize_profile(request.profile)}
 
 研究员笔记：
 {researcher_note}
@@ -134,6 +137,7 @@ def build_advisor_prompt(
 ```json
 {profile_block}
 ```
+用户画像摘要：{summarize_profile(request.profile)}
 
 研究员笔记：
 {researcher_note}
@@ -146,6 +150,7 @@ def build_advisor_prompt(
 
 请至少包含以下章节：
 - 摘要结论
+- 用户画像解读
 - 核心依据
 - 公司层级建议（大厂 / 中厂 / 小厂）
 - 学历分层判断

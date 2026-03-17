@@ -8,6 +8,7 @@ import requests
 from .config import EmploymentConfig
 from .models import EmploymentRequest, EmploymentSearchResult
 from .offerstar_crawler import OfferStarCrawler, OfferStarQuery
+from .profile import summarize_profile
 
 
 @dataclass(slots=True)
@@ -30,6 +31,13 @@ class EmploymentSearchAgency:
         education = self._infer_education_level(request)
         role_focus = self._infer_role_focus(base)
         role_tracks = self._infer_role_tracks(base)
+        target_roles = request.profile.get("target_roles") if isinstance(request.profile.get("target_roles"), list) else []
+        target_cities = request.profile.get("target_cities") if isinstance(request.profile.get("target_cities"), list) else []
+        preferred_industries = (
+            request.profile.get("preferred_industries")
+            if isinstance(request.profile.get("preferred_industries"), list)
+            else []
+        )
         queries = [base]
         lower = base.lower()
 
@@ -74,6 +82,24 @@ class EmploymentSearchAgency:
         if isinstance(skills, list) and skills:
             joined = " ".join(str(item) for item in skills[:4])
             queries.append(f"{base} {joined} 岗位 匹配")
+        school = request.profile.get("school")
+        major = request.profile.get("major")
+        internship = request.profile.get("internship")
+        if school and major:
+            queries.append(f"{school} {major} {role_focus} 求职 方向")
+        elif major:
+            queries.append(f"{major} {role_focus} 求职 方向")
+        if target_roles:
+            for role in target_roles[:2]:
+                if target_cities:
+                    queries.append(f"{' '.join(target_cities[:2])} {role} 校招 招聘")
+                else:
+                    queries.append(f"{role} 校招 招聘")
+        if preferred_industries:
+            queries.append(f"{' '.join(preferred_industries[:2])} {role_focus} 招聘")
+        if internship:
+            internship_text = internship if isinstance(internship, str) else " ".join(str(item) for item in internship[:2])
+            queries.append(f"{base} {internship_text} 经验 匹配")
 
         if "校招" in lower or "应届" in base:
             queries.append(f"{base} 校招 应届 岗位 要求")
@@ -220,6 +246,7 @@ class EmploymentSearchAgency:
             snippets.append("求职指导不只是判断行情，更要判断候选人的现有能力能否被岗位快速验证，并且优先选择成功率更高的公司层级。")
         if profile:
             snippets.append(f"当前已提供的用户画像字段包括：{', '.join(sorted(profile.keys()))}，这些信息可以帮助缩小建议范围。")
+            snippets.append(f"画像摘要：{summarize_profile(profile)}。")
         return snippets[: self.config.max_search_results]
 
     def _search_with_offerstar(self, request: EmploymentRequest) -> list[EmploymentSearchResult]:
