@@ -4,6 +4,7 @@ import argparse
 import csv
 import json
 import math
+import random
 import time
 from dataclasses import asdict, dataclass
 from datetime import datetime
@@ -78,11 +79,17 @@ class OfferStarCrawler:
         query: OfferStarQuery,
         progress_callback: callable | None = None, # type: ignore
     ) -> list[OfferStarJob]:
-        self._emit(progress_callback, "start", f"开始抓取 OfferStar，页码 {query.page_from}-{query.page_to}", 0)
+        pages = self._select_pages(query)
+        sampled_pages = ", ".join(str(page) for page in pages)
+        self._emit(
+            progress_callback,
+            "start",
+            f"开始抓取 OfferStar，页码范围 {query.page_from}-{query.page_to}，本次顺序: {sampled_pages}",
+            0,
+        )
         jobs: list[OfferStarJob] = []
         seen_keys: set[tuple[str, str, str, str]] = set()
 
-        pages = list(range(query.page_from, query.page_to + 1))
         total_pages = max(1, len(pages))
         last_request_at = 0.0
 
@@ -124,6 +131,19 @@ class OfferStarCrawler:
         self._emit(progress_callback, "done", f"抓取完成，共 {len(jobs)} 条", 100)
         return jobs[: query.max_items]
 
+    def _select_pages(self, query: OfferStarQuery) -> list[int]:
+        pages = list(range(query.page_from, query.page_to + 1))
+        if len(pages) <= 1:
+            return pages
+
+        if 1 in pages:
+            remaining = [page for page in pages if page != 1]
+            random.shuffle(remaining)
+            return [1, *remaining]
+
+        random.shuffle(pages)
+        return pages
+
     def save(self, jobs: list[OfferStarJob], query: OfferStarQuery) -> dict[str, str]:
         query.output_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -156,7 +176,8 @@ class OfferStarCrawler:
             params["company"] = query.company
         if query.positions:
             params["positions"] = query.positions
-        params["page"] = page
+        params["current"] = page
+        params["pageSize"] = 20
         return BASE_URL + "?" + urlencode(params)
 
     def _parse_jobs(self, html: str, page: int, source_url: str) -> list[OfferStarJob]:
@@ -248,9 +269,12 @@ class OfferStarCrawler:
 
     def _infer_city(self, question: str) -> str:
         cities = ["深圳", "广州", "杭州", "上海", "北京", "成都", "武汉", "南京", "苏州", "西安"]
-        for city in cities:
-            if city in question:
-                return city
+        matched = [city for city in cities if city in question]
+        if len(matched) == 1:
+            return matched[0]
+        if len(matched) > 1:
+            # When the user mentions multiple acceptable cities, avoid narrowing the crawl to only one.
+            return ""
         return ""
 
     def _infer_company(self, question: str) -> str:
