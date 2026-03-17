@@ -1,0 +1,11 @@
+[project]
+name = "joboracle"
+version = "0.1.0"
+description = "It is a multi-agent tool for job market analysis and employment guidance"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "beautifulsoup4>=4.14.3",
+    "dotenv>=0.9.9",
+    "requests>=2.32.5",
+]
