@@ -4,6 +4,7 @@ import asyncio
 from pathlib import Path
 import sys
 import threading
+import time
 
 project_src_dir = Path(__file__).resolve().parents[2]
 if str(project_src_dir) not in sys.path:
@@ -78,6 +79,14 @@ def _build_side_elements(response) -> list["cl.Text"]:
     ]
 
 
+def _serialize_sidebar_state(response) -> dict[str, object]:
+    return {
+        "session_id": response.session_id,
+        "overview": _runtime_overview(response),
+        "response_meta": _response_meta(response),
+    }
+
+
 def _response_meta(response) -> str:
     mode = "LLM" if response.used_llm else "fallback"
     search = "已启用" if response.used_search else "未启用"
@@ -123,6 +132,7 @@ if cl is not None:
                 actions.append(cl.Action(name="continue_analysis", payload={"action": normalized, "label": label}, label=label))
         if include_export:
             actions.append(cl.Action(name="export_markdown", payload={"action": "export"}, label="导出 Markdown"))
+        actions.append(cl.Action(name="toggle_sidebar", payload={"action": "toggle_sidebar"}, label="打开/关闭侧栏"))
         actions.append(cl.Action(name="reset_session", payload={"action": "reset"}, label="重置会话"))
         return actions
 
@@ -130,8 +140,12 @@ if cl is not None:
         cl.user_session.set("last_report_markdown", response.report_markdown)
         cl.user_session.set("last_report_output_path", response.report_output_path)
 
+    def _store_sidebar_state(response) -> None:
+        cl.user_session.set("sidebar_state_payload", _serialize_sidebar_state(response))
+
     async def _send_response(response) -> None:
-        await _update_sidebar(response)
+        if cl.user_session.get("sidebar_open", True):
+            await _update_sidebar(response)
         if response.mode == "report" and response.report_markdown:
             _store_report_state(response)
             await cl.Message(
@@ -148,8 +162,30 @@ if cl is not None:
     async def _update_sidebar(response) -> None:
         elements = _build_side_elements(response)
         elements.append(cl.Text(name="response_meta", content=_response_meta(response), display="side"))
+        _store_sidebar_state(response)
         await cl.ElementSidebar.set_title("JobOracle 状态")
-        await cl.ElementSidebar.set_elements(elements, key=f"sidebar-{response.session_id}")
+        await cl.ElementSidebar.set_elements(elements, key=f"sidebar-{response.session_id}-{time.time_ns()}")
+
+    async def _close_sidebar() -> None:
+        await cl.ElementSidebar.set_elements([])
+
+    async def _restore_sidebar() -> None:
+        payload = cl.user_session.get("sidebar_state_payload") or {}
+        overview = payload.get("overview") if isinstance(payload, dict) else None
+        response_meta = payload.get("response_meta") if isinstance(payload, dict) else None
+        session_id = payload.get("session_id") if isinstance(payload, dict) else None
+        if not isinstance(overview, list) or not overview:
+            return
+        names = ["profile_state", "task_state", "summary_state"]
+        elements = [
+            cl.Text(name=name, content=content, display="side")
+            for name, content in zip(names, overview, strict=False)
+        ]
+        if isinstance(response_meta, str):
+            elements.append(cl.Text(name="response_meta", content=response_meta, display="side"))
+        await cl.ElementSidebar.set_title("JobOracle 状态")
+        key_session = session_id if isinstance(session_id, str) and session_id else "restored"
+        await cl.ElementSidebar.set_elements(elements, key=f"sidebar-{key_session}-{time.time_ns()}")
 
     async def _stream_sync_generator(generator_factory, *args):
         queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
@@ -188,6 +224,8 @@ if cl is not None:
             cl.user_session.set("session_id", session_id)
             cl.user_session.set("last_report_markdown", "")
             cl.user_session.set("last_report_output_path", None)
+            cl.user_session.set("sidebar_open", True)
+            cl.user_session.set("sidebar_state_payload", {})
         await cl.Message(
             content=(
                 "# JobOracle\n\n"
@@ -250,7 +288,8 @@ if cl is not None:
                 used_llm=used_llm,
                 search_results=search_results,
             )
-            await _update_sidebar(response)
+            if cl.user_session.get("sidebar_open", True):
+                await _update_sidebar(response)
             return
 
         response = prepared
@@ -291,12 +330,27 @@ if cl is not None:
         await cl.Message(content=message, actions=_base_actions(["继续分析", "生成报告"], include_export=True)).send()
         await cl.Message(content=markdown).send()
 
+    @cl.action_callback("toggle_sidebar")
+    async def on_toggle_sidebar(action: "cl.Action") -> None:
+        sidebar_open = bool(cl.user_session.get("sidebar_open", True))
+        if sidebar_open:
+            await _close_sidebar()
+            cl.user_session.set("sidebar_open", False)
+            await cl.Message(content="已关闭右侧状态面板。", actions=_base_actions(["继续分析", "生成报告"], include_export=bool(cl.user_session.get("last_report_markdown")))).send()
+            return
+        await _restore_sidebar()
+        cl.user_session.set("sidebar_open", True)
+        await cl.Message(content="已打开右侧状态面板。", actions=_base_actions(["继续分析", "生成报告"], include_export=bool(cl.user_session.get("last_report_markdown")))).send()
+
     @cl.action_callback("reset_session")
     async def on_reset_session(action: "cl.Action") -> None:
         session_id = chat_service.start_session()
         cl.user_session.set("session_id", session_id)
         cl.user_session.set("last_report_markdown", "")
         cl.user_session.set("last_report_output_path", None)
+        cl.user_session.set("sidebar_open", True)
+        cl.user_session.set("sidebar_state_payload", {})
+        await _close_sidebar()
         await cl.Message(
             content="已为你开启一个新会话。你可以重新介绍自己的背景、目标岗位或目标城市。",
             actions=_base_actions(["继续分析", "生成报告"]),

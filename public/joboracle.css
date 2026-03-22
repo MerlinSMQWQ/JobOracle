@@ -39,6 +39,11 @@ body,
   backdrop-filter: blur(16px);
 }
 
+.MuiDrawer-paper .MuiIconButton-root:first-of-type,
+.MuiDrawer-paper button:first-of-type {
+  display: none !important;
+}
+
 .MuiPaper-root {
   border-radius: 20px !important;
 }
