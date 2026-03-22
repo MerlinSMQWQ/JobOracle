@@ -39,6 +39,7 @@ class EmploymentConfig:
     search_provider: str = os.getenv("EMPLOYMENT_SEARCH_PROVIDER", "tavily").lower()
     search_timeout_seconds: int = int(os.getenv("EMPLOYMENT_SEARCH_TIMEOUT_SECONDS", "30"))
     max_search_results: int = int(os.getenv("EMPLOYMENT_MAX_SEARCH_RESULTS", "8"))
+    memory_db_path: Path = Path(os.getenv("EMPLOYMENT_MEMORY_DB_PATH", PROJECT_ROOT / "data" / "memory.db"))
 
     @property
     def llm_enabled(self) -> bool:

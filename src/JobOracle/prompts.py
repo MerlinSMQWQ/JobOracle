@@ -45,6 +45,20 @@ ADVISOR_SYSTEM_PROMPT = """你是一名务实的就业顾问。
 """
 
 
+CHAT_SYSTEM_PROMPT = """你是一名连续跟进式的就业顾问。
+
+你的职责：
+1. 基于多轮对话上下文、用户画像、会话摘要和必要时的检索结果，直接回答用户当前问题。
+2. 回复要像真实顾问对话，不要写成报告，不要写“### 当前判断”“### 下一步建议”这类模板标题。
+3. 先直接回答用户最关心的问题，再给 1 到 2 条可执行的下一步建议。
+4. 如果信息不足，可以补 1 个必要追问，但不要像填表，不要一次追问很多项。
+5. 如果使用了检索结果，不要伪造事实；不确定的内容明确说“推断”“可能”或“从当前信息看”。
+6. 如果用户问的是城市、岗位、公司层级、技能门槛，请尽量给出明确倾向，而不是只重复背景。
+7. 不要主动生成完整报告；只有用户明确要求时才转去报告模式。
+8. 输出自然中文短回复，控制在适合聊天阅读的长度，默认 2 到 5 段。
+"""
+
+
 def format_search_results(results: list[EmploymentSearchResult], limit: int = 8) -> str:
     if not results:
         return "无外部检索结果。"
@@ -70,6 +84,12 @@ def _display_source(source: str) -> str:
 
 def build_researcher_prompt(request: EmploymentRequest, mode: str, results: list[EmploymentSearchResult]) -> str:
     profile_block = json.dumps(request.profile, ensure_ascii=False, indent=2) if request.profile else "{}"
+    recent_messages = "\n".join(
+        f"- {item.get('role', 'unknown')}: {item.get('content', '')}"
+        for item in request.recent_messages[-6:]
+    ) or "无"
+    active_goals = "\n".join(f"- {goal}" for goal in request.active_goals) or "无"
+    open_questions = "\n".join(f"- {question}" for question in request.open_questions) or "无"
     return f"""请根据下面的用户问题和检索证据，输出一份研究员笔记。
 
 模式：{mode}
@@ -79,6 +99,13 @@ def build_researcher_prompt(request: EmploymentRequest, mode: str, results: list
 {profile_block}
 ```
 用户画像摘要：{summarize_profile(request.profile)}
+会话摘要：{request.conversation_summary or "无"}
+当前目标：
+{active_goals}
+待补充信息：
+{open_questions}
+最近几轮对话：
+{recent_messages}
 
 检索结果：
 {format_search_results(results)}
@@ -99,11 +126,18 @@ def build_analyst_prompt(
     researcher_note: str,
     results: list[EmploymentSearchResult],
 ) -> str:
+    active_goals = "\n".join(f"- {goal}" for goal in request.active_goals) or "无"
+    open_questions = "\n".join(f"- {question}" for question in request.open_questions) or "无"
     return f"""请基于下面材料输出结构化分析。
 
 模式：{mode}
 用户问题：{request.query}
 用户画像摘要：{summarize_profile(request.profile)}
+会话摘要：{request.conversation_summary or "无"}
+当前目标：
+{active_goals}
+待补充信息：
+{open_questions}
 
 研究员笔记：
 {researcher_note}
@@ -129,6 +163,12 @@ def build_advisor_prompt(
     results: list[EmploymentSearchResult],
 ) -> str:
     profile_block = json.dumps(request.profile, ensure_ascii=False, indent=2) if request.profile else "{}"
+    recent_messages = "\n".join(
+        f"- {item.get('role', 'unknown')}: {item.get('content', '')}"
+        for item in request.recent_messages[-6:]
+    ) or "无"
+    active_goals = "\n".join(f"- {goal}" for goal in request.active_goals) or "无"
+    open_questions = "\n".join(f"- {question}" for question in request.open_questions) or "无"
     return f"""请生成最终就业分析报告。
 
 模式：{mode}
@@ -138,6 +178,13 @@ def build_advisor_prompt(
 {profile_block}
 ```
 用户画像摘要：{summarize_profile(request.profile)}
+会话摘要：{request.conversation_summary or "无"}
+当前目标：
+{active_goals}
+待补充信息：
+{open_questions}
+最近几轮对话：
+{recent_messages}
 
 研究员笔记：
 {researcher_note}
@@ -158,4 +205,51 @@ def build_advisor_prompt(
 - 具体建议
 - 30 天行动计划
 - 参考证据
+"""
+
+
+def build_chat_prompt(
+    request: EmploymentRequest,
+    results: list[EmploymentSearchResult],
+    *,
+    response_style: str,
+    follow_up_question: str = "",
+    last_report_brief: str = "",
+) -> str:
+    profile_block = json.dumps(request.profile, ensure_ascii=False, indent=2) if request.profile else "{}"
+    recent_messages = "\n".join(
+        f"- {item.get('role', 'unknown')}: {item.get('content', '')}"
+        for item in request.recent_messages[-8:]
+    ) or "无"
+    active_goals = "\n".join(f"- {goal}" for goal in request.active_goals) or "无"
+    open_questions = "\n".join(f"- {question}" for question in request.open_questions) or "无"
+    search_results = format_search_results(results, limit=4) if results else "无外部检索结果。"
+    return f"""请生成一条多轮聊天回复。
+
+用户当前消息：{request.query}
+聊天回复风格：{response_style}
+用户画像：
+```json
+{profile_block}
+```
+用户画像摘要：{summarize_profile(request.profile)}
+会话摘要：{request.conversation_summary or "无"}
+当前目标：
+{active_goals}
+待补充信息：
+{open_questions}
+最近一次报告摘要：{last_report_brief or "无"}
+最近几轮对话：
+{recent_messages}
+
+可用检索结果：
+{search_results}
+
+补充要求：
+- 直接回答用户当前问题，不要写报告式小标题
+- 先给判断，再给 1 到 2 条下一步建议
+- 如果确实需要追问，可自然地补一句：{follow_up_question or "无"}
+- 如果检索结果不足，允许基于现有上下文做谨慎推断，但要明确这是推断
+- 不要复述整段画像，只有在必要时才点到最相关的背景信息
+- 不要把回复写成模板块，也不要机械地列出“已记录信息”
 """

@@ -119,6 +119,37 @@ uv run src/JobOracle/cli.py "我是统计学本科，想去深圳找数据分析
 uv run src/JobOracle/cli.py "2026 年杭州算法岗就业行情如何" --quiet
 ```
 
+## 💬 多轮对话前端
+
+当前项目已经提供一个临时 `Chainlit` 前端，用于验证多轮对话、记忆累积和“聊天 / 报告”两种模式。
+
+启动方式：
+
+```bash
+uv run chainlit run src/JobOracle/ui/chainlit_app.py
+```
+
+如果你使用项目自带虚拟环境，也可以：
+
+```bash
+.venv/bin/chainlit run src/JobOracle/ui/chainlit_app.py
+```
+
+当前前端能力包括：
+
+- 多轮聊天输入
+- 会话自动维护
+- 用户画像侧边展示
+- 当前任务与待补充信息展示
+- `生成报告`
+- `导出 Markdown`
+- `重置会话`
+
+说明：
+
+- 这是一层临时前端，目的是验证多轮交互体验。
+- 核心逻辑仍然在 Python service 层，后续可以替换成其他 UI 方案。
+
 ## 👤 用户画像
 
 JobOracle 支持通过 `--profile-json` 或 `--profile-file` 传入用户画像，并会自动做字段标准化。

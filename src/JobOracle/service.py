@@ -6,6 +6,7 @@ from .agents import AdvisorAgent, AnalystAgent, ResearcherAgent
 from .config import get_config
 from .llm_client import EmploymentLLMClient
 from .models import AgentNote, EmploymentReport, EmploymentRequest
+from .memory.models import RuntimeContext
 from .report_writer import save_markdown
 from .search import EmploymentSearchAgency
 
@@ -102,6 +103,32 @@ class EmploymentAdvisor:
             {"output_path": output_path, "title": title},
         )
         return report
+
+    def analyze_with_context(
+        self,
+        request: EmploymentRequest,
+        runtime_context: RuntimeContext,
+        progress_callback: Callable[[str, str, int, dict[str, object] | None], None] | None = None,
+    ) -> EmploymentReport:
+        enriched_request = EmploymentRequest(
+            query=request.query,
+            mode=request.mode,
+            profile=runtime_context.profile or request.profile,
+            save=request.save,
+            use_offerstar=request.use_offerstar,
+            offerstar_page_from=request.offerstar_page_from,
+            offerstar_page_to=request.offerstar_page_to,
+            offerstar_max_items=request.offerstar_max_items,
+            session_id=runtime_context.session_id,
+            conversation_summary=runtime_context.conversation_summary,
+            recent_messages=[
+                {"role": message.role, "content": message.content}
+                for message in runtime_context.recent_messages
+            ],
+            active_goals=runtime_context.active_goals,
+            open_questions=runtime_context.open_questions,
+        )
+        return self.analyze(enriched_request, progress_callback=progress_callback)
 
     def _resolve_mode(self, request: EmploymentRequest) -> str:
         if request.mode in {"market", "guidance"}:

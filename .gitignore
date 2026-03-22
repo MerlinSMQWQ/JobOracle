@@ -10,5 +10,8 @@ wheels/
 .venv
 reports
 jobs_dataset
+data
 .env
 .DS_Store
+.chainlit/translations/
+.files

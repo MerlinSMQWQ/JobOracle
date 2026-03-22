@@ -14,6 +14,11 @@ class EmploymentRequest:
     offerstar_page_from: int = 1
     offerstar_page_to: int = 1
     offerstar_max_items: int = 20
+    session_id: str | None = None
+    conversation_summary: str = ""
+    recent_messages: list[dict[str, str]] = field(default_factory=list)
+    active_goals: list[str] = field(default_factory=list)
+    open_questions: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
