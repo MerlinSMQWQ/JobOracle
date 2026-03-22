@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Generator
 from dataclasses import dataclass, field
 
 from .config import get_config
@@ -94,6 +95,112 @@ class ChatService:
             used_llm=used_llm,
             used_search=bool(chat_search_results),
             search_results=chat_search_results,
+        )
+
+    def prepare_message(
+        self,
+        content: str,
+        session_id: str | None = None,
+        *,
+        mode: str = "auto",
+        save_report: bool = True,
+        use_offerstar: bool = False,
+        offerstar_page_from: int = 1,
+        offerstar_page_to: int = 1,
+        offerstar_max_items: int = 20,
+    ) -> tuple[str, RuntimeContext, ConversationDecision, list[EmploymentSearchResult]] | ChatResponse:
+        resolved_session_id = session_id or self.start_session()
+        context = self.memory.ingest_user_message(resolved_session_id, content)
+        decision = self.planner.decide(context)
+        if decision.mode == "report":
+            report = self._generate_report(
+                content=content,
+                context=context,
+                mode=mode,
+                save_report=save_report,
+                use_offerstar=use_offerstar,
+                offerstar_page_from=offerstar_page_from,
+                offerstar_page_to=offerstar_page_to,
+                offerstar_max_items=offerstar_max_items,
+            )
+            assistant_message = "我已经根据当前会话内容生成了一份完整报告。"
+            self.memory.ingest_assistant_message(resolved_session_id, assistant_message)
+            self.memory.update_last_report_brief(resolved_session_id, self._build_report_brief(report))
+            return ChatResponse(
+                session_id=resolved_session_id,
+                mode="report",
+                message=assistant_message,
+                report_markdown=report.markdown,
+                report_output_path=report.output_path,
+                suggested_actions=["导出 Markdown", "继续分析"],
+                runtime_context=self.memory.build_runtime_context(resolved_session_id),
+                used_llm=report.used_llm,
+                used_search=report.used_search,
+                search_results=report.search_results,
+            )
+        chat_search_results = self._search_for_chat(context, decision, mode=mode)
+        return resolved_session_id, context, decision, chat_search_results
+
+    def stream_chat_reply(
+        self,
+        context: RuntimeContext,
+        decision: ConversationDecision,
+        search_results: list[EmploymentSearchResult],
+    ) -> Generator[str, None, tuple[bool, str]]:
+        request = EmploymentRequest(
+            query=context.latest_user_message,
+            mode="guidance",
+            profile=context.profile,
+            save=False,
+            session_id=context.session_id,
+            conversation_summary=context.conversation_summary,
+            recent_messages=[{"role": item.role, "content": item.content} for item in context.recent_messages],
+            active_goals=context.active_goals,
+            open_questions=context.open_questions,
+        )
+        try:
+            chunks: list[str] = []
+            for token in self.advisor.llm_client.generate_text_stream(
+                CHAT_SYSTEM_PROMPT,
+                build_chat_prompt(
+                    request,
+                    search_results,
+                    response_style=decision.response_style,
+                    follow_up_question=decision.follow_up_question,
+                    last_report_brief=context.last_report_brief,
+                ),
+                temperature=0.55,
+            ):
+                chunks.append(token)
+                yield token
+            final_text = "".join(chunks).strip()
+            if not final_text:
+                raise RuntimeError("Empty streamed reply.")
+            return True, final_text
+        except Exception:
+            fallback = self._compose_chat_message(decision)
+            return False, fallback
+
+    def finalize_chat_reply(
+        self,
+        session_id: str,
+        message: str,
+        decision: ConversationDecision,
+        *,
+        used_llm: bool,
+        search_results: list[EmploymentSearchResult],
+    ) -> ChatResponse:
+        updated_context = self.memory.ingest_assistant_message(session_id, message)
+        return ChatResponse(
+            session_id=session_id,
+            mode="chat",
+            message=message,
+            follow_up_question=decision.follow_up_question,
+            suggested_actions=decision.suggested_actions,
+            runtime_context=updated_context,
+            used_llm=used_llm,
+            used_search=bool(search_results),
+            search_results=search_results,
         )
 
     def _generate_report(

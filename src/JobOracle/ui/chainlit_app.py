@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 import sys
+import threading
 
 project_src_dir = Path(__file__).resolve().parents[2]
 if str(project_src_dir) not in sys.path:
@@ -106,6 +108,8 @@ def _action_guidance(label: str) -> str:
 
 if cl is not None:
     async_handle_message = cl.make_async(chat_service.handle_message)
+    async_prepare_message = cl.make_async(chat_service.prepare_message)
+    async_finalize_chat_reply = cl.make_async(chat_service.finalize_chat_reply)
 
     def _base_actions(suggested_actions: list[str] | None = None, include_export: bool = False) -> list["cl.Action"]:
         actions = []
@@ -127,13 +131,11 @@ if cl is not None:
         cl.user_session.set("last_report_output_path", response.report_output_path)
 
     async def _send_response(response) -> None:
-        elements = _build_side_elements(response)
-        elements.append(cl.Text(name="response_meta", content=_response_meta(response), display="side"))
+        await _update_sidebar(response)
         if response.mode == "report" and response.report_markdown:
             _store_report_state(response)
             await cl.Message(
                 content=response.message,
-                elements=elements,
                 actions=_base_actions(response.suggested_actions, include_export=True),
             ).send()
             await cl.Message(content=response.report_markdown).send()
@@ -141,7 +143,42 @@ if cl is not None:
         content = response.message
         if response.follow_up_question:
             content += f"\n\n{response.follow_up_question}"
-        await cl.Message(content=content, elements=elements, actions=_base_actions(response.suggested_actions)).send()
+        await cl.Message(content=content, actions=_base_actions(response.suggested_actions)).send()
+
+    async def _update_sidebar(response) -> None:
+        elements = _build_side_elements(response)
+        elements.append(cl.Text(name="response_meta", content=_response_meta(response), display="side"))
+        await cl.ElementSidebar.set_title("JobOracle 状态")
+        await cl.ElementSidebar.set_elements(elements, key=f"sidebar-{response.session_id}")
+
+    async def _stream_sync_generator(generator_factory, *args):
+        queue: asyncio.Queue[tuple[str, object]] = asyncio.Queue()
+        loop = asyncio.get_running_loop()
+
+        def worker() -> None:
+            try:
+                generator = generator_factory(*args)
+                try:
+                    while True:
+                        token = next(generator)
+                        asyncio.run_coroutine_threadsafe(queue.put(("token", token)), loop)
+                except StopIteration as stop:
+                    asyncio.run_coroutine_threadsafe(queue.put(("done", stop.value)), loop)
+            except Exception as exc:  # pragma: no cover - defensive streaming guard
+                asyncio.run_coroutine_threadsafe(queue.put(("error", exc)), loop)
+
+        threading.Thread(target=worker, daemon=True).start()
+
+        while True:
+            event, payload = await queue.get()
+            if event == "token":
+                yield ("token", payload)
+                continue
+            if event == "done":
+                yield ("done", payload)
+                return
+            yield ("error", payload)
+            return
 
     @cl.on_chat_start
     async def on_chat_start() -> None:
@@ -164,8 +201,60 @@ if cl is not None:
     @cl.on_message
     async def on_message(message: "cl.Message") -> None:
         session_id = cl.user_session.get("session_id")
-        await cl.Message(content="正在整理记忆并生成回复，请稍候...").send()
-        response = await async_handle_message(message.content, session_id=session_id)
+        prepared = await async_prepare_message(message.content, session_id=session_id)
+        if isinstance(prepared, tuple):
+            resolved_session_id, context, decision, search_results = prepared
+            status_parts = ["正在整理记忆"]
+            if search_results:
+                status_parts.append("已完成轻量检索")
+            status_parts.append("正在流式生成回复")
+            await cl.Message(content="，".join(status_parts) + "…").send()
+
+            stream_msg = cl.Message(content="", actions=_base_actions(decision.suggested_actions))
+
+            used_llm = False
+            final_text = ""
+            async for event, payload in _stream_sync_generator(
+                chat_service.stream_chat_reply,
+                context,
+                decision,
+                search_results,
+            ):
+                if event == "token":
+                    used_llm = True
+                    await stream_msg.stream_token(str(payload))
+                    continue
+                if event == "done":
+                    if isinstance(payload, tuple):
+                        used_llm = bool(payload[0])
+                        final_text = str(payload[1])
+                    break
+                used_llm = False
+                final_text = chat_service._compose_chat_message(decision)
+                break
+
+            if not final_text:
+                final_text = stream_msg.content or chat_service._compose_chat_message(decision)
+
+            if not used_llm:
+                stream_msg.content = final_text
+                await stream_msg.send()
+            else:
+                stream_msg.content = final_text
+                await stream_msg.send()
+
+            response = await async_finalize_chat_reply(
+                resolved_session_id,
+                final_text,
+                decision,
+                used_llm=used_llm,
+                search_results=search_results,
+            )
+            await _update_sidebar(response)
+            return
+
+        response = prepared
+        await cl.Message(content="正在根据当前会话内容生成报告，请稍候...").send()
         await _send_response(response)
 
     @cl.action_callback("generate_report")
